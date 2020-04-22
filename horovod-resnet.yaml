@@ -1,0 +1,58 @@
+apiVersion: kubeflow.org/v1alpha2
+kind: MPIJob
+metadata:
+  name: tensorflow-benchmarks-imagenet-gpu6
+spec:
+  slotsPerWorker: 3
+  cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - image: chiming3/horovod_resnet:latest
+            name: horovod-resnet
+            command:
+              - mpirun
+              - --allow-run-as-root
+              - -np
+              - "6"
+              - -bind-to
+              - none
+              - -map-by
+              - slot
+              - -x
+              - NCCL_DEBUG=INFO
+              - -x
+              - LD_LIBRARY_PATH
+              - -x
+              - PATH
+              - -mca
+              - pml
+              - ob1
+              - -mca
+              - btl
+              - ^openib
+              - python
+              - keras_imagenet_resnet50.py
+              - --train-dir=/imagenet-tiny/train
+              - --val-dir=/imagenet-tiny/val
+              - --num-workers=6
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          containers:
+          - image: chiming3/horovod_resnet:latest
+            name: horovod-resnet
+            resources:
+              limits:
+                nvidia.com/gpu: 3
+            volumeMounts:
+            - mountPath: /imagenet-tiny
+              name: imagenet-tiny
+          volumes:
+            - name: imagenet-tiny
+              persistentVolumeClaim:
+                claimName: imagenet-tiny-raw
